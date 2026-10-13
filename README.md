@@ -15,8 +15,6 @@ Scanning: Design, prototype status and simulation-based validation"* (IJRTI form
 | ESP32-CAM QR scanning, Wi-Fi to laptop | Implemented (`esp code/`) |
 | Flask server saving scans to CSV | Implemented (`app.py`) |
 | Camera-based position control (ArUco + PID) | Simulation only |
-| Command forwarding to the flight controller (MSP) | Not implemented |
-| Firebase storage | Designed, not implemented |
 | Autonomous flight | Not attempted |
 
 No hardware flight measurements are reported. The numbers below come from simulation.
