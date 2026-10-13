@@ -1,0 +1,110 @@
+/*
+  ESP32-CAM Warehouse QR Scanner
+  AI-Thinker ESP32-CAM + compatible ESP32QRCodeReader library.
+  Sends decoded QR text (not an image) to Flask over Wi-Fi.
+
+  Required Arduino libraries:
+    - ESP32QRCodeReader (compatible with the API used below)
+    - ArduinoJson
+
+  Replace WIFI_NAME, WIFI_PASSWORD, and LAPTOP_IP before uploading.
+*/
+
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <WiFiClient.h>
+#include <ArduinoJson.h>
+#include <ESP32QRCodeReader.h>
+
+const char* ssid = "WIFI_NAME";
+const char* password = "WIFI_PASSWORD";
+const char* serverURL = "http://LAPTOP_IP:5000/qrdata";
+
+ESP32QRCodeReader reader(CAMERA_MODEL_AI_THINKER);
+
+void onQrCodeDetected(DecodedQR qrCode) {
+  if (qrCode.payload == nullptr) {
+    return;
+  }
+
+  String qrText = String(qrCode.payload);
+  qrText.trim();
+  if (qrText.length() == 0) {
+    return;
+  }
+
+  Serial.println("\nQR code detected:");
+  Serial.println(qrText);
+
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("Wi-Fi disconnected; QR data not sent.");
+    return;
+  }
+
+  WiFiClient client;
+  HTTPClient http;
+  if (!http.begin(client, serverURL)) {
+    Serial.println("Could not initialize HTTP connection.");
+    return;
+  }
+
+  http.setTimeout(5000);
+  http.addHeader("Content-Type", "application/json");
+
+  // JSON serialization safely escapes special characters in QR text.
+  StaticJsonDocument<768> doc;
+  doc["data"] = qrText;
+  String json;
+  serializeJson(doc, json);
+
+  int httpCode = http.POST(json);
+  Serial.print("HTTP response: ");
+  Serial.println(httpCode);
+
+  if (httpCode > 0) {
+    Serial.println(http.getString());
+  } else {
+    Serial.print("HTTP request failed: ");
+    Serial.println(http.errorToString(httpCode));
+  }
+
+  http.end();
+}
+
+void setup() {
+  Serial.begin(115200);
+  delay(500);
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to Wi-Fi");
+
+  unsigned long startTime = millis();
+  while (WiFi.status() != WL_CONNECTED &&
+         millis() - startTime < 20000) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("\nWi-Fi connection failed. Check credentials and restart.");
+    return;
+  }
+
+  Serial.println("\nWi-Fi connected.");
+  Serial.print("ESP32-CAM IP: ");
+  Serial.println(WiFi.localIP());
+  Serial.print("Flask server: ");
+  Serial.println(serverURL);
+
+  reader.setup();
+  reader.beginOnCore(1);
+  reader.setCallback(onQrCodeDetected);
+
+  Serial.println("QR reader initialized. Show an inventory QR label.");
+}
+
+void loop() {
+  // QR decoding runs in the reader's task.
+  delay(100);
+}
